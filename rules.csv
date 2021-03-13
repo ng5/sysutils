@@ -1,0 +1,12 @@
+Description,Source,SourceUser,SourceKey,TargetIP,TargetPort,Protocol
+ROW1,da02.ln.lan,,,da01,12001,TCP
+ROW2,localhost,,,da02,12001,TCP
+ROW3,localhost,,,google.com,80,TCP
+ROW4,localhost,,,google.com,443,TCP
+ROW5,localhost,,,da02,12002,UDP
+ROW6,localhost,,,da03,16379,TCP
+ROW7,127.0.0.1,,,da02,12002,UDP
+ROW8,da01.ln.lan,,,224.0.0.1,12003,UDP
+ROW9,da03.ln.lan,,,da02,12002,UDP
+ROW10,da02.ln.lan,,/home/rohitv/.ssh/id_rsa,da02,12002,UDP
+
