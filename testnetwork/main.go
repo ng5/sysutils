@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -100,34 +101,49 @@ func main() {
 			keys = append(keys, k)
 		}
 		sort.Strings(keys)
+		maxRoutines := 0
 		for _, k := range keys {
 			row := m[k]
 			if IsLocal(row.Source) {
 				continue
 			}
-			if *overwrite == true {
-				err := shared.TransferFile(row.SourceUser, row.Source, ":22", row.SourceKey, csvFileBase, "/tmp/"+csvFileBase)
-				if err != nil {
-					printRow(&row, err)
-					continue
-				}
-				err = shared.TransferFile(row.SourceUser, row.Source, ":22", row.SourceKey, exPath, "/tmp/"+exBaseName)
-				if err != nil {
-					printRow(&row, err)
-					continue
-				}
-			}
-			err = shared.RemoteExecSSH(row.SourceUser, row.Source, ":22", row.SourceKey, "chmod +x /tmp/"+exBaseName)
-			if err != nil {
-				printRow(&row, err)
-				continue
-			}
-			err = shared.RemoteExecSSH(row.SourceUser, row.Source, ":22", row.SourceKey, "/tmp/"+exBaseName+" --file "+"/tmp/"+csvFileBase)
-			if err != nil {
-				printRow(&row, err)
-				continue
-			}
+			maxRoutines++
 		}
+		var wg sync.WaitGroup
+		wg.Add(maxRoutines)
+		for _, k := range keys {
+			row := m[k]
+			if IsLocal(row.Source) {
+				continue
+			}
+			go func() {
+				if *overwrite == true {
+					err := shared.TransferFile(row.SourceUser, row.Source, ":22", row.SourceKey, csvFileBase, "/tmp/"+csvFileBase)
+					if err != nil {
+						printRow(&row, err)
+						return
+					}
+					err = shared.TransferFile(row.SourceUser, row.Source, ":22", row.SourceKey, exPath, "/tmp/"+exBaseName)
+					if err != nil {
+						printRow(&row, err)
+						return
+					}
+				}
+				fmt.Println("running concurrent tests on " + row.Source)
+				err = shared.RemoteExecSSH(row.SourceUser, row.Source, ":22", row.SourceKey, "chmod +x /tmp/"+exBaseName)
+				if err != nil {
+					printRow(&row, err)
+					return
+				}
+				err = shared.RemoteExecSSH(row.SourceUser, row.Source, ":22", row.SourceKey, "/tmp/"+exBaseName+" --file "+"/tmp/"+csvFileBase)
+				if err != nil {
+					printRow(&row, err)
+					return
+				}
+				wg.Done()
+			}()
+		}
+		wg.Wait()
 	} else {
 		fmt.Printf("%-12s %-20s %-20s %-20s %-12s %-12s\n", "Description", "HostName", "Source", "Target", "Protocol", "Status")
 		fmt.Printf("-------------------------------------------------------------------------------------------------------\n")
