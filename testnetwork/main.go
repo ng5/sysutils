@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -57,6 +58,10 @@ func main() {
 		if count == 1 {
 			continue
 		}
+		timeout, e := strconv.ParseInt(line[7], 10, 64)
+		if e != nil {
+			timeout = shared.TimeoutSeconds
+		}
 		row := shared.Row{
 			Description: line[0],
 			Source:      line[1],
@@ -65,6 +70,7 @@ func main() {
 			TargetIP:    line[4],
 			TargetPort:  line[5],
 			Protocol:    line[6],
+			TimeOut:     int(timeout),
 		}
 		if len(row.SourceUser) == 0 {
 			row.SourceUser = U.Username
@@ -125,8 +131,9 @@ func main() {
 	} else {
 		fmt.Printf("%-12s %-20s %-20s %-20s %-12s %-12s\n", "Description", "HostName", "Source", "Target", "Protocol", "Status")
 		fmt.Printf("-------------------------------------------------------------------------------------------------------\n")
-		d := net.Dialer{Timeout: shared.TimeoutSeconds * time.Second}
 		for _, row := range rows {
+			timeout := time.Duration(row.TimeOut) * time.Millisecond
+			d := net.Dialer{Timeout: timeout}
 			protocol := strings.ToLower(row.Protocol)
 			if protocol == "multicast" {
 				protocol = "udp"
@@ -136,7 +143,7 @@ func main() {
 				continue
 			}
 			if strings.ToLower(row.Protocol) == "multicast" {
-				err := shared.MulticastRead(row.TargetIP, row.TargetPort, false)
+				err := shared.MulticastRead(row.TargetIP, row.TargetPort, timeout, false)
 				if err != nil {
 					status = "FAILED: " + err.Error()
 				} else {
@@ -147,13 +154,13 @@ func main() {
 				if err != nil {
 					status = "FAILED: " + err.Error()
 				} else {
-					conn.SetWriteDeadline(time.Now().Add(shared.TimeoutSeconds * time.Second))
+					conn.SetWriteDeadline(time.Now().Add(timeout))
 					_, err = conn.Write([]byte("test\n"))
 					if err != nil {
 						status = "FAILED " + err.Error()
 					} else {
 						status = "WRITE OK "
-						conn.SetReadDeadline(time.Now().Add(shared.TimeoutSeconds * time.Second))
+						conn.SetReadDeadline(time.Now().Add(timeout))
 						_, _, err = bufio.NewReader(conn).ReadLine()
 						if err != nil {
 							status = status + "/ READ FAILED " + err.Error()

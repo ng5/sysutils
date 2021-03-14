@@ -27,6 +27,7 @@ type Row struct {
 	TargetIP    string
 	TargetPort  string
 	Protocol    string
+	TimeOut     int
 }
 
 func PrivateKeyFile(file string) ssh.AuthMethod {
@@ -123,7 +124,7 @@ func RemoteExecSSH(user string, remote string, port string, key string, command 
 	return nil
 }
 
-func MulticastRead(group, port string, continuous bool) error {
+func MulticastRead(group, port string, timeout time.Duration, continuous bool) error {
 	p, err1 := strconv.Atoi(port)
 	if err1 != nil {
 		log.Fatal(err1)
@@ -144,7 +145,7 @@ func MulticastRead(group, port string, continuous bool) error {
 	if err := c.SetControlMessage(ipv4.FlagTTL|ipv4.FlagSrc|ipv4.FlagDst|ipv4.FlagInterface, true); err != nil {
 		log.Fatal(err)
 	}
-	return MulticastLoop(c, TimeoutSeconds*time.Second, continuous)
+	return MulticastLoop(c, timeout, continuous)
 }
 
 func MulticastOpen(bindAddr net.IP, port int) (*ipv4.PacketConn, error) {
