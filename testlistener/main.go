@@ -23,8 +23,8 @@ type tcpServer struct {
 func (es *tcpServer) React(frame []byte, c gnet.Conn) (out []byte, action gnet.Action) {
 	data := append([]byte{}, frame...)
 	_ = es.pool.Submit(func() {
-		log.Println("TCP packet: " + strings.ReplaceAll(string(data), "\n", ""))
 		c.AsyncWrite(data)
+		log.Println("Replying TCP packet: " + strings.ReplaceAll(string(data), "\n", ""))
 	})
 	return
 }
@@ -37,8 +37,8 @@ type udpServer struct {
 func (udp *udpServer) React(frame []byte, c gnet.Conn) (out []byte, action gnet.Action) {
 	data := append([]byte{}, frame...)
 	_ = udp.pool.Submit(func() {
-		log.Println("UDP packet: " + strings.ReplaceAll(string(data), "\n", ""))
 		c.SendTo(data)
+		log.Println("Replying UDP packet: " + strings.ReplaceAll(string(data), "\n", ""))
 	})
 	return
 }
@@ -113,7 +113,21 @@ func readLoop(c *ipv4.PacketConn) {
 		log.Printf("MULTICAST packet: recv %d bytes from %s to %s on %s", n, cm.Src, cm.Dst, name)
 	}
 }
-
+func generateTraffic(group string, port string, data string) {
+	conn, err := net.Dial("udp", group+":"+port)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+	for {
+		_, err = conn.Write([]byte(data))
+		if err != nil {
+			return
+		} else {
+			time.Sleep(time.Second)
+		}
+	}
+}
 func main() {
 	USAGE := "Usage: testlistener -t <TCP> -u <UDP> -m <MULTICAST GROUP:PORT>"
 	t := flag.String("t", "12001", "tcp port")
@@ -142,9 +156,11 @@ func main() {
 	go func() {
 		mcastRead(tokens[0], tokens[1])
 	}()
+	go generateTraffic(tokens[0], tokens[1], "test multicast")
 	log.Printf("listening TCP: %s\n", *t)
 	log.Printf("listening UDP: %s\n", *u)
 	log.Printf("listening MULTICAST: %s\n", *m)
+	log.Printf("generating MULTICAST: %s\n", *m)
 	for {
 		time.Sleep(10 * time.Second)
 	}

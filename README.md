@@ -14,13 +14,29 @@ CGO_ENABLED=0 go install ./...
 ## testlistener
 
 if you don't have any server applications yet, use this program to open 3 ports on host machine to allow you to test
-connectivity.
+connectivity. program will also generate traffic on multicast for testing purpose. Change ports as necessary.
+
+```
+testlistener -h    
+Usage of testlistener:
+  -m string
+    	multicast group & port (default "239.0.0.1:12003")
+  -t string
+    	tcp port (default "12001")
+  -u string
+    	udp port (default "12002")
+```
 
 ```
 ~/go/bin/testlistener                  
-2021/03/14 19:28:50 listening TCP: 12001
-2021/03/14 19:28:50 listening UDP: 12002
-2021/03/14 19:28:50 listening MULTICAST: 239.0.0.1:12003
+2021/03/14 19:47:08 listening TCP: 12001
+2021/03/14 19:47:08 listening UDP: 12002
+2021/03/14 19:47:08 listening MULTICAST: 239.0.0.1:12003
+2021/03/14 19:47:08 generating MULTICAST: 239.0.0.1:12003
+2021/03/14 19:47:09 MULTICAST packet: recv 14 bytes from 192.168.68.202 to 239.0.0.1 on wlp3s0
+2021/03/14 19:47:10 MULTICAST packet: recv 14 bytes from 192.168.68.202 to 239.0.0.1 on wlp3s0
+2021/03/14 19:47:11 MULTICAST packet: recv 14 bytes from 192.168.68.202 to 239.0.0.1 on wlp3s0
+2021/03/14 19:47:12 MULTICAST packet: recv 14 bytes from 192.168.68.202 to 239.0.0.1 on wlp3s0
 ```
 
 ## testnetwork
