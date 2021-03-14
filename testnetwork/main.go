@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"github.com/ng5/sysutils/testnetwork/util"
+	"github.com/ng5/sysutils/shared"
 	"net"
 	"os"
 	"os/user"
@@ -24,7 +24,7 @@ func IsLocal(src string) bool {
 	}
 	return false
 }
-func printRow(row *util.Row, err error) {
+func printRow(row *shared.Row, err error) {
 	fmt.Printf("%-12s %-20s %-20s %-20s %-12s %v\n", row.Description, hostName, row.SourceUser+"@"+row.Source, row.TargetIP+":"+row.TargetPort, row.Protocol, err)
 }
 func main() {
@@ -44,20 +44,20 @@ func main() {
 		return
 	}
 	U, err := user.Current()
-	lines, err := util.ReadCsv(*csvFile)
+	lines, err := shared.ReadCsv(*csvFile)
 	if err != nil {
 		fmt.Printf("%v\n", err)
 		return
 	}
 	count := 0
-	rows := make([]util.Row, 0)
-	m := map[string]util.Row{}
+	rows := make([]shared.Row, 0)
+	m := map[string]shared.Row{}
 	for _, line := range lines {
 		count++
 		if count == 1 {
 			continue
 		}
-		row := util.Row{
+		row := shared.Row{
 			Description: line[0],
 			Source:      line[1],
 			SourceUser:  line[2],
@@ -100,23 +100,23 @@ func main() {
 				continue
 			}
 			if *overwrite == true {
-				err := util.TransferFile(row.SourceUser, row.Source, ":22", row.SourceKey, csvFileBase, "/tmp/"+csvFileBase)
+				err := shared.TransferFile(row.SourceUser, row.Source, ":22", row.SourceKey, csvFileBase, "/tmp/"+csvFileBase)
 				if err != nil {
 					printRow(&row, err)
 					continue
 				}
-				err = util.TransferFile(row.SourceUser, row.Source, ":22", row.SourceKey, exPath, "/tmp/"+exBaseName)
+				err = shared.TransferFile(row.SourceUser, row.Source, ":22", row.SourceKey, exPath, "/tmp/"+exBaseName)
 				if err != nil {
 					printRow(&row, err)
 					continue
 				}
 			}
-			err = util.RemoteExecSSH(row.SourceUser, row.Source, ":22", row.SourceKey, "chmod +x /tmp/"+exBaseName)
+			err = shared.RemoteExecSSH(row.SourceUser, row.Source, ":22", row.SourceKey, "chmod +x /tmp/"+exBaseName)
 			if err != nil {
 				printRow(&row, err)
 				continue
 			}
-			err = util.RemoteExecSSH(row.SourceUser, row.Source, ":22", row.SourceKey, "/tmp/"+exBaseName+" --file "+"/tmp/"+csvFileBase)
+			err = shared.RemoteExecSSH(row.SourceUser, row.Source, ":22", row.SourceKey, "/tmp/"+exBaseName+" --file "+"/tmp/"+csvFileBase)
 			if err != nil {
 				printRow(&row, err)
 				continue

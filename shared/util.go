@@ -1,4 +1,4 @@
-package util
+package shared
 
 import (
 	"bytes"
@@ -6,10 +6,15 @@ import (
 	"fmt"
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/net/ipv4"
 	"io"
 	"io/ioutil"
 	"log"
+	"net"
 	"os"
+	"strconv"
+	"syscall"
+	"time"
 )
 
 type Row struct {
@@ -114,4 +119,90 @@ func RemoteExecSSH(user string, remote string, port string, key string, command 
 		fmt.Println(str)
 	}
 	return nil
+}
+
+func MulticastRead(group, port string) {
+	p, err1 := strconv.Atoi(port)
+	if err1 != nil {
+		log.Fatal(err1)
+	}
+	a := net.ParseIP("0.0.0.0")
+	g := net.ParseIP(group)
+	if g == nil {
+		log.Fatal(fmt.Errorf("bad group: '%s'", group))
+	}
+	c, err3 := MulticastOpen(a, p)
+	if err3 != nil {
+		log.Fatal(err3)
+	}
+	if err := c.JoinGroup(nil, &net.UDPAddr{IP: g}); err != nil {
+		log.Fatal(err)
+	}
+	if err := c.SetControlMessage(ipv4.FlagTTL|ipv4.FlagSrc|ipv4.FlagDst|ipv4.FlagInterface, true); err != nil {
+		log.Fatal(err)
+	}
+	MulticastLoop(c)
+	c.Close()
+}
+
+func MulticastOpen(bindAddr net.IP, port int) (*ipv4.PacketConn, error) {
+	s, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_DGRAM, syscall.IPPROTO_UDP)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := syscall.SetsockoptInt(s, syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1); err != nil {
+		log.Fatal(err)
+	}
+	lsa := syscall.SockaddrInet4{Port: port}
+	copy(lsa.Addr[:], bindAddr.To4())
+	if err := syscall.Bind(s, &lsa); err != nil {
+		syscall.Close(s)
+		log.Fatal(err)
+	}
+	f := os.NewFile(uintptr(s), "")
+	c, err := net.FilePacketConn(f)
+	f.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
+	p := ipv4.NewPacketConn(c)
+	return p, nil
+}
+
+func MulticastLoop(c *ipv4.PacketConn) {
+	buf := make([]byte, 10000)
+	for {
+		n, cm, _, err1 := c.ReadFrom(buf)
+		if err1 != nil {
+			log.Printf("MULTICAST: readfrom: error %v", err1)
+			break
+		}
+		var name string
+		ifi, err2 := net.InterfaceByIndex(cm.IfIndex)
+		if err2 != nil {
+			log.Printf("readLoop: unable to solve ifIndex=%d: error: %v", cm.IfIndex, err2)
+		}
+
+		if ifi == nil {
+			name = "ifname?"
+		} else {
+			name = ifi.Name
+		}
+		log.Printf("MULTICAST packet: recv %d bytes from %s to %s on %s", n, cm.Src, cm.Dst, name)
+	}
+}
+func GenerateTraffic(group string, port string, data string) {
+	conn, err := net.Dial("udp", group+":"+port)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+	for {
+		_, err = conn.Write([]byte(data))
+		if err != nil {
+			return
+		} else {
+			time.Sleep(time.Second)
+		}
+	}
 }
