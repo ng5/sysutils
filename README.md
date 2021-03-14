@@ -18,10 +18,9 @@ connectivity.
 
 ```
 ~/go/bin/testlistener                  
-2021/03/14 08:27:11 listening TCP: 12001
-2021/03/14 08:27:11 listening UDP: 12002
-2021/03/14 08:27:11 listening MULTICAST: 12003 (224.0.0.1)
-
+2021/03/14 19:28:50 listening TCP: 12001
+2021/03/14 19:28:50 listening UDP: 12002
+2021/03/14 19:28:50 listening MULTICAST: 239.0.0.1:12003
 ```
 
 ## testnetwork
