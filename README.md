@@ -15,7 +15,7 @@ CGO_ENABLED=0 go install ./...
 ## testlistener
 this open 3 ports on host machine to allow you to test connectivity.
 ```
-testlistener                  
+~/go/bin/testlistener                  
 2021/03/14 08:27:11 listening TCP: 12001
 2021/03/14 08:27:11 listening UDP: 12002
 2021/03/14 08:27:11 listening MULTICAST: 12003 (224.0.0.1)
@@ -29,7 +29,7 @@ Sample rules.csv is provided.
 
 ### Basic connectivity from local machine
 ```
-testnetwork --file rules.csv
+~/go/bin/testnetwork --file rules.csv
 Description  HostName             Source               Target               Protocol     Status      
 -------------------------------------------------------------------------------------------------------
 ROW3         da09.ln.lan          localhost            google.com:80        TCP          OK          
@@ -52,9 +52,9 @@ with --overwrite=false, files will not be transferred assuming they have been tr
 this will run test much faster.
 
 ```
-testnetwork --file=rules.csv --replicate=true --overwrite=true 
+~/go/bin/testnetwork --file=rules.csv --replicate=true --overwrite=true 
 da02.ln.lan da01.csv 332 bytes copied
-da02.ln.lan /main/home/rohitv/go/bin/testnetwork 5104563 bytes copied
+da02.ln.lan ~/go/bin/testnetwork 5104563 bytes copied
 Description  HostName             Source               Target               Protocol     Status      
 -------------------------------------------------------------------------------------------------------
 ROW1         da02.ln.lan          da02.ln.lan          google.com:80        TCP          OK          
