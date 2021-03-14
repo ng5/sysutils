@@ -18,8 +18,6 @@ import (
 
 var hostName string
 
-const timeout = 2
-
 func IsLocal(src string) bool {
 	if strings.ToLower(src) == "localhost" || src == "127.0.0.1" || src == hostName {
 		return true
@@ -127,7 +125,7 @@ func main() {
 	} else {
 		fmt.Printf("%-12s %-20s %-20s %-20s %-12s %-12s\n", "Description", "HostName", "Source", "Target", "Protocol", "Status")
 		fmt.Printf("-------------------------------------------------------------------------------------------------------\n")
-		d := net.Dialer{Timeout: timeout * time.Second}
+		d := net.Dialer{Timeout: shared.TimeoutSeconds * time.Second}
 		for _, row := range rows {
 			protocol := strings.ToLower(row.Protocol)
 			if protocol == "multicast" {
@@ -137,20 +135,25 @@ func main() {
 			if !IsLocal(row.Source) {
 				continue
 			}
-			conn, err := d.Dial(protocol, row.TargetIP+":"+row.TargetPort)
-			if err != nil {
-				status = "FAILED: " + err.Error()
-			} else {
-				conn.SetWriteDeadline(time.Now().Add(timeout * time.Second))
-				_, err = conn.Write([]byte("test\n"))
+			if strings.ToLower(row.Protocol) == "multicast" {
+				err := shared.MulticastRead(row.TargetIP, row.TargetPort, false)
 				if err != nil {
-					status = "FAILED " + err.Error()
+					status = "FAILED: " + err.Error()
 				} else {
-					if strings.ToLower(row.Protocol) == "multicast" {
-						status = "** not implemented yet **"
+					status = "OK"
+				}
+			} else {
+				conn, err := d.Dial(protocol, row.TargetIP+":"+row.TargetPort)
+				if err != nil {
+					status = "FAILED: " + err.Error()
+				} else {
+					conn.SetWriteDeadline(time.Now().Add(shared.TimeoutSeconds * time.Second))
+					_, err = conn.Write([]byte("test\n"))
+					if err != nil {
+						status = "FAILED " + err.Error()
 					} else {
 						status = "WRITE OK "
-						conn.SetReadDeadline(time.Now().Add(timeout * time.Second))
+						conn.SetReadDeadline(time.Now().Add(shared.TimeoutSeconds * time.Second))
 						_, _, err = bufio.NewReader(conn).ReadLine()
 						if err != nil {
 							status = status + "/ READ FAILED " + err.Error()
@@ -159,9 +162,9 @@ func main() {
 						}
 					}
 				}
-			}
-			if conn != nil {
-				_ = conn.Close()
+				if conn != nil {
+					_ = conn.Close()
+				}
 			}
 			fmt.Printf("%-12s %-20s %-20s %-20s %-12s %-12s\n", row.Description, hostName, row.Source, row.TargetIP+":"+row.TargetPort, row.Protocol, status)
 		}

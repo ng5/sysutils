@@ -65,7 +65,7 @@ func main() {
 	go gnet.Serve(&tcpServer{pool: p1}, tcp)
 	go gnet.Serve(&udpServer{pool: p2}, udp)
 	go func() {
-		shared.MulticastRead(tokens[0], tokens[1])
+		_ = shared.MulticastRead(tokens[0], tokens[1], true)
 	}()
 	go shared.GenerateTraffic(tokens[0], tokens[1], "test multicast")
 	log.Printf("listening TCP: %s\n", *t)

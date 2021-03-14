@@ -17,6 +17,8 @@ import (
 	"time"
 )
 
+const TimeoutSeconds = 2
+
 type Row struct {
 	Description string
 	Source      string
@@ -121,7 +123,7 @@ func RemoteExecSSH(user string, remote string, port string, key string, command 
 	return nil
 }
 
-func MulticastRead(group, port string) {
+func MulticastRead(group, port string, continuous bool) error {
 	p, err1 := strconv.Atoi(port)
 	if err1 != nil {
 		log.Fatal(err1)
@@ -135,14 +137,14 @@ func MulticastRead(group, port string) {
 	if err3 != nil {
 		log.Fatal(err3)
 	}
+	defer c.Close()
 	if err := c.JoinGroup(nil, &net.UDPAddr{IP: g}); err != nil {
 		log.Fatal(err)
 	}
 	if err := c.SetControlMessage(ipv4.FlagTTL|ipv4.FlagSrc|ipv4.FlagDst|ipv4.FlagInterface, true); err != nil {
 		log.Fatal(err)
 	}
-	MulticastLoop(c)
-	c.Close()
+	return MulticastLoop(c, TimeoutSeconds*time.Second, continuous)
 }
 
 func MulticastOpen(bindAddr net.IP, port int) (*ipv4.PacketConn, error) {
@@ -161,26 +163,39 @@ func MulticastOpen(bindAddr net.IP, port int) (*ipv4.PacketConn, error) {
 	}
 	f := os.NewFile(uintptr(s), "")
 	c, err := net.FilePacketConn(f)
-	f.Close()
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer f.Close()
 	p := ipv4.NewPacketConn(c)
 	return p, nil
 }
 
-func MulticastLoop(c *ipv4.PacketConn) {
+func MulticastLoop(c *ipv4.PacketConn, timeout time.Duration, continuous bool) error {
 	buf := make([]byte, 10000)
 	for {
+		c.SetReadDeadline(time.Now().Add(timeout))
 		n, cm, _, err1 := c.ReadFrom(buf)
 		if err1 != nil {
-			log.Printf("MULTICAST: readfrom: error %v", err1)
-			break
+			if !continuous {
+				return err1
+			} else {
+				log.Printf("MULTICAST: readfrom: error %v", err1)
+				continue
+			}
+		} else {
+			if !continuous {
+				return nil
+			}
 		}
 		var name string
 		ifi, err2 := net.InterfaceByIndex(cm.IfIndex)
 		if err2 != nil {
-			log.Printf("readLoop: unable to solve ifIndex=%d: error: %v", cm.IfIndex, err2)
+			if !continuous {
+				return err1
+			} else {
+				log.Printf("readLoop: unable to solve ifIndex=%d: error: %v", cm.IfIndex, err2)
+			}
 		}
 
 		if ifi == nil {
@@ -188,7 +203,9 @@ func MulticastLoop(c *ipv4.PacketConn) {
 		} else {
 			name = ifi.Name
 		}
-		log.Printf("MULTICAST packet: recv %d bytes from %s to %s on %s", n, cm.Src, cm.Dst, name)
+		if continuous {
+			log.Printf("MULTICAST packet: recv %d bytes from %s to %s on %s", n, cm.Src, cm.Dst, name)
+		}
 	}
 }
 func GenerateTraffic(group string, port string, data string) {
