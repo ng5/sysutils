@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"github.com/ng5/sysutils/testnetwork/util"
 	"net"
 	"os"
 	"os/user"
@@ -15,23 +16,27 @@ import (
 	"time"
 )
 
+var hostName string
+
 func IsLocal(src string) bool {
-	hostName, _ := os.Hostname()
 	if strings.ToLower(src) == "localhost" || src == "127.0.0.1" || src == hostName {
 		return true
 	}
 	return false
 }
-
+func printRow(row *util.Row, err error) {
+	fmt.Printf("%-12s %-20s %-20s %-20s %-12s %v\n", row.Description, hostName, row.SourceUser+"@"+row.Source, row.TargetIP+":"+row.TargetPort, row.Protocol, err)
+}
 func main() {
+	hostName, _ = os.Hostname()
 	ex, err := os.Executable()
 	if err != nil {
 		panic(err)
 	}
 	exPath, err := filepath.Abs(ex)
 	exBaseName := filepath.Base(ex)
-	csvFile := flag.String("file", "", "csv file")
-	replicate := flag.Bool("replicate", false, "run test on remote machines")
+	csvFile := flag.String("file", "", "csv file containing rules")
+	remote := flag.Bool("remote", false, "run test on remote machines")
 	overwrite := flag.Bool("overwrite", true, "overwrite rules file and itself on remote machines")
 	flag.Parse()
 	if len(*csvFile) == 0 {
@@ -39,20 +44,20 @@ func main() {
 		return
 	}
 	U, err := user.Current()
-	lines, err := ReadCsv(*csvFile)
+	lines, err := util.ReadCsv(*csvFile)
 	if err != nil {
 		fmt.Printf("%v\n", err)
 		return
 	}
 	count := 0
-	rows := make([]Row, 0)
-	m := map[string]Row{}
+	rows := make([]util.Row, 0)
+	m := map[string]util.Row{}
 	for _, line := range lines {
 		count++
 		if count == 1 {
 			continue
 		}
-		row := Row{
+		row := util.Row{
 			Description: line[0],
 			Source:      line[1],
 			SourceUser:  line[2],
@@ -62,16 +67,23 @@ func main() {
 			Protocol:    line[6],
 		}
 		if len(row.SourceUser) == 0 {
-			row.SourceUser = U.Name
+			row.SourceUser = U.Username
 		}
 		if len(row.SourceKey) == 0 {
 			row.SourceKey = path.Join(U.HomeDir, ".ssh", "id_rsa")
 		}
 		rows = append(rows, row)
+		previous, ok := m[row.Source]
+		if ok {
+			// Don't replace user added entry
+			if previous.SourceUser != U.Username {
+				continue
+			}
+		}
 		m[row.Source] = row
-	}
 
-	if *replicate == true {
+	}
+	if *remote == true {
 		if runtime.GOOS != "linux" {
 			fmt.Println("replication is only allowed from linux machine")
 			return
@@ -83,21 +95,36 @@ func main() {
 		}
 		sort.Strings(keys)
 		for _, k := range keys {
-			v := m[k]
-			if IsLocal(v.Source) {
+			row := m[k]
+			if IsLocal(row.Source) {
 				continue
 			}
 			if *overwrite == true {
-				TransferFile(v.SourceUser, v.Source, ":22", v.SourceKey, csvFileBase, "/tmp/"+csvFileBase)
-				TransferFile(v.SourceUser, v.Source, ":22", v.SourceKey, exPath, "/tmp/"+exBaseName)
+				err := util.TransferFile(row.SourceUser, row.Source, ":22", row.SourceKey, csvFileBase, "/tmp/"+csvFileBase)
+				if err != nil {
+					printRow(&row, err)
+					continue
+				}
+				err = util.TransferFile(row.SourceUser, row.Source, ":22", row.SourceKey, exPath, "/tmp/"+exBaseName)
+				if err != nil {
+					printRow(&row, err)
+					continue
+				}
 			}
-			_ = RemoteExecSSH(v.SourceUser, v.Source, ":22", v.SourceKey, "chmod +x /tmp/"+exBaseName)
-			_ = RemoteExecSSH(v.SourceUser, v.Source, ":22", v.SourceKey, "/tmp/"+exBaseName+" --file "+"/tmp/"+csvFileBase)
+			err = util.RemoteExecSSH(row.SourceUser, row.Source, ":22", row.SourceKey, "chmod +x /tmp/"+exBaseName)
+			if err != nil {
+				printRow(&row, err)
+				continue
+			}
+			err = util.RemoteExecSSH(row.SourceUser, row.Source, ":22", row.SourceKey, "/tmp/"+exBaseName+" --file "+"/tmp/"+csvFileBase)
+			if err != nil {
+				printRow(&row, err)
+				continue
+			}
 		}
 	} else {
 		fmt.Printf("%-12s %-20s %-20s %-20s %-12s %-12s\n", "Description", "HostName", "Source", "Target", "Protocol", "Status")
 		fmt.Printf("-------------------------------------------------------------------------------------------------------\n")
-		hostName, _ := os.Hostname()
 		d := net.Dialer{Timeout: 1 * time.Second}
 		for _, row := range rows {
 			status := ""
@@ -130,4 +157,5 @@ func main() {
 			fmt.Printf("%-12s %-20s %-20s %-20s %-12s %-12s\n", row.Description, hostName, row.Source, row.TargetIP+":"+row.TargetPort, row.Protocol, status)
 		}
 	}
+
 }

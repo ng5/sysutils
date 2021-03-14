@@ -1,4 +1,4 @@
-package main
+package util
 
 import (
 	"bytes"
@@ -47,7 +47,7 @@ func ReadCsv(filename string) ([][]string, error) {
 	}
 	return lines, nil
 }
-func TransferFile(user string, remote string, port string, key string, src string, dest string) {
+func TransferFile(user string, remote string, port string, key string, src string, dest string) error {
 	config := &ssh.ClientConfig{
 		User: user,
 		Auth: []ssh.AuthMethod{
@@ -58,7 +58,7 @@ func TransferFile(user string, remote string, port string, key string, src strin
 
 	conn, err := ssh.Dial("tcp", remote+port, config)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	defer conn.Close()
 
@@ -83,6 +83,7 @@ func TransferFile(user string, remote string, port string, key string, src strin
 		log.Fatal(err)
 	}
 	fmt.Printf("%s %s %d bytes copied\n", remote, srcFile.Name(), bytes)
+	return nil
 }
 func RemoteExecSSH(user string, remote string, port string, key string, command string) error {
 	config := &ssh.ClientConfig{
@@ -95,7 +96,7 @@ func RemoteExecSSH(user string, remote string, port string, key string, command 
 
 	conn, err := ssh.Dial("tcp", remote+port, config)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	defer conn.Close()
 
