@@ -113,7 +113,12 @@ func RemoteExec(overwrite bool, row *shared.Row, csvFileBase string, ex string, 
 		return
 	}
 }
-func LocalExecCurrent(row *shared.Row, wg *sync.WaitGroup) {
+func writeStatus(lock *sync.RWMutex, index int, status string, statusMap map[int]string) {
+	lock.Lock()
+	defer lock.Unlock()
+	statusMap[index] = status
+}
+func LocalExecCurrent(row *shared.Row, wg *sync.WaitGroup, index int, statusMap map[int]string, lock *sync.RWMutex) {
 	defer wg.Done()
 	timeout := time.Duration(row.TimeOut) * time.Millisecond
 	d := net.Dialer{Timeout: timeout}
@@ -156,18 +161,27 @@ func LocalExecCurrent(row *shared.Row, wg *sync.WaitGroup) {
 			_ = conn.Close()
 		}
 	}
-	fmt.Printf("%-12s %-20s %-20s %-20s %-12s %-12s\n", row.Description, hostName, row.Source, row.TargetIP+":"+row.TargetPort, row.Protocol, status)
+	writeStatus(lock, index, status, statusMap)
+
 }
 func LocalExec(rows []shared.Row) {
 	fmt.Printf("%-12s %-20s %-20s %-20s %-12s %-12s\n", "Description", "HostName", "Source", "Target", "Protocol", "Status")
 	fmt.Printf("-------------------------------------------------------------------------------------------------------\n")
 	var wg sync.WaitGroup
 	wg.Add(len(rows))
+	statusMap := map[int]string{}
+	lock := sync.RWMutex{}
 	for i, _ := range rows {
-		currentRow := rows[i]
-		go LocalExecCurrent(&currentRow, &wg)
+		index := i
+		currentRow := rows[index]
+		go LocalExecCurrent(&currentRow, &wg, index, statusMap, &lock)
 	}
 	wg.Wait()
+	for i, row := range rows {
+		if status, ok := statusMap[i]; ok {
+			fmt.Printf("%-12s %-20s %-20s %-20s %-12s %-12s\n", row.Description, hostName, row.Source, row.TargetIP+":"+row.TargetPort, row.Protocol, status)
+		}
+	}
 }
 func main() {
 	hostName, _ = os.Hostname()
