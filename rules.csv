@@ -9,4 +9,4 @@ ROW7,localhost,,,8.8.8.8,53,UDP
 ROW8,localhost,,,4.4.4.4,53,UDP
 ROW9,localhost,,,localhost,12001,TCP
 ROW10,localhost,,,localhost,12002,UDP
-ROW11,localhost,,,239.0.0.1,12003,UDP
+ROW11,localhost,,,239.0.0.1,12003,MULTICAST

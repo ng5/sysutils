@@ -18,6 +18,8 @@ import (
 
 var hostName string
 
+const timeout = 2
+
 func IsLocal(src string) bool {
 	if strings.ToLower(src) == "localhost" || src == "127.0.0.1" || src == hostName {
 		return true
@@ -125,29 +127,36 @@ func main() {
 	} else {
 		fmt.Printf("%-12s %-20s %-20s %-20s %-12s %-12s\n", "Description", "HostName", "Source", "Target", "Protocol", "Status")
 		fmt.Printf("-------------------------------------------------------------------------------------------------------\n")
-		d := net.Dialer{Timeout: 1 * time.Second}
+		d := net.Dialer{Timeout: timeout * time.Second}
 		for _, row := range rows {
+			protocol := strings.ToLower(row.Protocol)
+			if protocol == "multicast" {
+				protocol = "udp"
+			}
 			status := ""
 			if !IsLocal(row.Source) {
 				continue
 			}
-			conn, err := d.Dial(strings.ToLower(row.Protocol), row.TargetIP+":"+row.TargetPort)
+			conn, err := d.Dial(protocol, row.TargetIP+":"+row.TargetPort)
 			if err != nil {
 				status = "FAILED: " + err.Error()
 			} else {
+				conn.SetWriteDeadline(time.Now().Add(timeout * time.Second))
 				_, err = conn.Write([]byte("test\n"))
 				if err != nil {
 					status = "FAILED " + err.Error()
 				} else {
-					if row.Protocol == strings.ToLower("tcp") {
+					if strings.ToLower(row.Protocol) == "multicast" {
+						status = "** not implemented yet **"
+					} else {
+						status = "WRITE OK "
+						conn.SetReadDeadline(time.Now().Add(timeout * time.Second))
 						_, _, err = bufio.NewReader(conn).ReadLine()
 						if err != nil {
-							status = "FAILED " + err.Error()
+							status = status + "/ READ FAILED " + err.Error()
 						} else {
 							status = "OK"
 						}
-					} else {
-						status = "OK"
 					}
 				}
 			}
