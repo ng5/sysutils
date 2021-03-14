@@ -38,10 +38,6 @@ func main() {
 		fmt.Println("Usage: testnetwork --file <csv file>")
 		return
 	}
-	if runtime.GOOS != "linux" {
-		fmt.Println("replication is only allowed from linux machine")
-		return
-	}
 	U, err := user.Current()
 	lines, err := ReadCsv(*csvFile)
 	if err != nil {
@@ -76,6 +72,10 @@ func main() {
 	}
 
 	if *replicate == true {
+		if runtime.GOOS != "linux" {
+			fmt.Println("replication is only allowed from linux machine")
+			return
+		}
 		csvFileBase := filepath.Base(*csvFile)
 		keys := make([]string, 0, len(m))
 		for k := range m {
