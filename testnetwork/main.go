@@ -31,8 +31,8 @@ func main() {
 	exPath, err := filepath.Abs(ex)
 	exBaseName := filepath.Base(ex)
 	csvFile := flag.String("file", "", "csv file")
-	replicate := flag.Bool("replicate", false, "replicate to source machines")
-	overwrite := flag.Bool("overwrite", true, "replicate to source machines")
+	replicate := flag.Bool("replicate", false, "run test on remote machines")
+	overwrite := flag.Bool("overwrite", true, "overwrite rules file and itself on remote machines")
 	flag.Parse()
 	if len(*csvFile) == 0 {
 		fmt.Println("Usage: testnetwork --file <csv file>")
