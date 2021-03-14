@@ -11,7 +11,6 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -29,27 +28,12 @@ func IsLocal(src string) bool {
 func printRow(row *shared.Row, err error) {
 	fmt.Printf("%-12s %-20s %-20s %-20s %-12s %v\n", row.Description, hostName, row.SourceUser+"@"+row.Source, row.TargetIP+":"+row.TargetPort, row.Protocol, err)
 }
-func main() {
-	hostName, _ = os.Hostname()
-	ex, err := os.Executable()
-	if err != nil {
-		panic(err)
-	}
-	exPath, err := filepath.Abs(ex)
-	exBaseName := filepath.Base(ex)
-	csvFile := flag.String("file", "", "csv file containing rules")
-	remote := flag.Bool("remote", false, "run test on remote machines")
-	overwrite := flag.Bool("overwrite", true, "overwrite rules file and itself on remote machines")
-	flag.Parse()
-	if len(*csvFile) == 0 {
-		fmt.Println("Usage: testnetwork --file <csv file>")
-		return
-	}
+func ReadRows(file string) (map[string]shared.Row, []shared.Row) {
 	U, err := user.Current()
-	lines, err := shared.ReadCsv(*csvFile)
+	lines, err := shared.ReadCsv(file)
 	if err != nil {
 		fmt.Printf("%v\n", err)
-		return
+		return nil, nil
 	}
 	count := 0
 	rows := make([]shared.Row, 0)
@@ -88,8 +72,37 @@ func main() {
 			}
 		}
 		m[row.Source] = row
-
 	}
+	return m, rows
+}
+func GetMaxRoutines(m map[string]shared.Row) int {
+	maxRoutines := 0
+	for _, v := range m {
+		if IsLocal(v.Source) {
+			continue
+		}
+		maxRoutines++
+	}
+	return maxRoutines
+}
+func main() {
+	hostName, _ = os.Hostname()
+	ex, err := os.Executable()
+	if err != nil {
+		panic(err)
+	}
+	exPath, err := filepath.Abs(ex)
+	exBaseName := filepath.Base(ex)
+	csvFile := flag.String("file", "", "csv file containing rules")
+	remote := flag.Bool("remote", false, "run test on remote machines")
+	overwrite := flag.Bool("overwrite", true, "overwrite rules file and itself on remote machines")
+	flag.Parse()
+	if len(*csvFile) == 0 {
+		fmt.Println("Usage: testnetwork --file <csv file>")
+		return
+	}
+	m, rows := ReadRows(*csvFile)
+	maxRoutines := GetMaxRoutines(m)
 	if *remote == true {
 		if runtime.GOOS != "linux" {
 			fmt.Println("replication is only allowed from linux machine")
@@ -99,15 +112,6 @@ func main() {
 		keys := make([]string, 0, len(m))
 		for k := range m {
 			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		maxRoutines := 0
-		for _, k := range keys {
-			row := m[k]
-			if IsLocal(row.Source) {
-				continue
-			}
-			maxRoutines++
 		}
 		var wg sync.WaitGroup
 		wg.Add(maxRoutines)
