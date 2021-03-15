@@ -10,6 +10,7 @@ import (
 	"os/user"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -28,7 +29,7 @@ func IsLocal(src string) bool {
 func printRow(row *shared.Row, err error) {
 	fmt.Printf("%-12s %-20s %-20s %-20s %-12s %v\n", row.Description, hostName, row.SourceUser+"@"+row.Source, row.TargetIP+":"+row.TargetPort, row.Protocol, err)
 }
-func ReadRows(file string) (map[string]shared.Row, []shared.Row) {
+func ReadRows(file string, filter *string) (map[string]shared.Row, []shared.Row) {
 	U, err := user.Current()
 	lines, err := shared.ReadCsv(file)
 	if err != nil {
@@ -73,7 +74,22 @@ func ReadRows(file string) (map[string]shared.Row, []shared.Row) {
 		}
 		m[row.Source] = row
 	}
-	return m, rows
+	applyFilter := false
+	if filter != nil && len(strings.TrimSpace(*filter)) > 0 {
+		applyFilter = true
+	}
+	if !applyFilter {
+		return m, rows
+	}
+	regEx := regexp.MustCompile(strings.TrimSpace(*filter))
+	filteredRows := make([]shared.Row, 0)
+	for _, row := range rows {
+		if applyFilter && !regEx.MatchString(row.Description) {
+			continue
+		}
+		filteredRows = append(filteredRows, row)
+	}
+	return m, filteredRows
 }
 func GetMaxRoutines(m map[string]shared.Row) int {
 	maxRoutines := 0
@@ -85,7 +101,7 @@ func GetMaxRoutines(m map[string]shared.Row) int {
 	}
 	return maxRoutines
 }
-func RemoteExec(overwrite bool, row *shared.Row, csvFileBase string, ex string, wg *sync.WaitGroup) {
+func RemoteExec(overwrite bool, row *shared.Row, csvFileBase string, ex string, wg *sync.WaitGroup, filter *string) {
 	defer wg.Done()
 	exPath, err := filepath.Abs(ex)
 	exBaseName := filepath.Base(ex)
@@ -107,10 +123,18 @@ func RemoteExec(overwrite bool, row *shared.Row, csvFileBase string, ex string, 
 		printRow(row, err)
 		return
 	}
-	err = shared.RemoteExecSSH(row.SourceUser, row.Source, ":22", row.SourceKey, "/tmp/"+exBaseName+" --file "+"/tmp/"+csvFileBase)
-	if err != nil {
-		printRow(row, err)
-		return
+	if filter != nil && len(*filter) > 0 {
+		err = shared.RemoteExecSSH(row.SourceUser, row.Source, ":22", row.SourceKey, "/tmp/"+exBaseName+" --file=/tmp/"+csvFileBase+" --filter='"+*filter+"'")
+		if err != nil {
+			printRow(row, err)
+			return
+		}
+	} else {
+		err = shared.RemoteExecSSH(row.SourceUser, row.Source, ":22", row.SourceKey, "/tmp/"+exBaseName+" --file=/tmp/"+csvFileBase)
+		if err != nil {
+			printRow(row, err)
+			return
+		}
 	}
 }
 func writeStatus(lock *sync.RWMutex, index int, status string, statusMap map[int]string) {
@@ -189,6 +213,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	filter := flag.String("filter", "", "filter rows by description")
 	csvFile := flag.String("file", "", "csv file containing rules")
 	remote := flag.Bool("remote", false, "run test on remote machines")
 	overwrite := flag.Bool("overwrite", true, "overwrite rules file and itself on remote machines")
@@ -197,7 +222,7 @@ func main() {
 		fmt.Println("Usage: testnetwork --file <csv file>")
 		return
 	}
-	m, rows := ReadRows(*csvFile)
+	m, rows := ReadRows(*csvFile, filter)
 	maxRoutines := GetMaxRoutines(m)
 	if *remote == true {
 		if runtime.GOOS != "linux" {
@@ -216,7 +241,7 @@ func main() {
 			if IsLocal(row.Source) {
 				continue
 			}
-			go RemoteExec(*overwrite, &row, csvFileBase, ex, &wg)
+			go RemoteExec(*overwrite, &row, csvFileBase, ex, &wg, filter)
 		}
 		wg.Wait()
 	} else {
