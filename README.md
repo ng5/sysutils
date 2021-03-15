@@ -1,6 +1,7 @@
 # sysutils
 
-This repository contains code to perform system level utilities. There are 2 programs available
+This repository contains code to perform system level utilities. Currently there are 2 programs available testlistener
+and testnetwork.
 
 ## Installation
 
@@ -41,8 +42,21 @@ Usage of testlistener:
 
 ## testnetwork
 
-this allows to test network connectivity across 3 protocols: TCP, UDP & multicast. Rules can be passed to this program
-with --file csv argument. Sample rules.csv is provided.
+Instead of writing duplicate bash scripts/power shell and copying them on remote servers and then finally executing them
+sequentially, this program (testnetwork) provides an alternative method. Add your networking rules in a csv file and
+pass it to testnetwork. this is how it works:
+
+1. <b>zero</b> dependencies on test machines.
+2. rules will be sorted by hostname
+3. ssh connection will be made only <b>once</b> per host.
+4. rules.csv and testnetwork will be transferred to remote server under <b>/tmp</b> directory. <br>
+   i) alternatively with --overwrite=false, you can avoid uploading the program and execute them must faster.
+5. supports for TCP, UDP and MULTICAST.
+6. supports test for connection, writing and reading for TCP and UDP.
+7. all tests are run <b>concurrently</b> using goroutines. After all network tests are I/O bound and require async
+   execution.<br>
+   i) files will be transferred <b>concurrently</b>. <br>
+   ii) individual tests will be performed <b>concurrently</b>.
 
 ### Basic connectivity from local machine
 
