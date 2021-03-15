@@ -165,8 +165,8 @@ func LocalExecCurrent(row *shared.Row, wg *sync.WaitGroup, index int, statusMap 
 
 }
 func LocalExec(rows []shared.Row) {
-	fmt.Printf("%-12s %-20s %-20s %-30s %-12s %-12s\n", "Description", "HostName", "Source", "Target", "Protocol", "Status")
-	fmt.Printf("-------------------------------------------------------------------------------------------------------\n")
+	fmt.Printf("%-25s %-25s %-25s %-30s %-12s %-12s\n", "Description", "HostName", "Source", "Target", "Protocol", "Status")
+	fmt.Printf("--------------------------------------------------------------------------------------------------------------------------------\n")
 	var wg sync.WaitGroup
 	wg.Add(len(rows))
 	statusMap := map[int]string{}
@@ -179,7 +179,7 @@ func LocalExec(rows []shared.Row) {
 	wg.Wait()
 	for i, row := range rows {
 		if status, ok := statusMap[i]; ok {
-			fmt.Printf("%-12s %-20s %-20s %-30s %-12s %-12s\n", row.Description, hostName, row.Source, row.TargetIP+":"+row.TargetPort, row.Protocol, status)
+			fmt.Printf("%-25s %-25s %-25s %-30s %-12s %-12s\n", row.Description, hostName, row.Source, row.TargetIP+":"+row.TargetPort, row.Protocol, status)
 		}
 	}
 }
