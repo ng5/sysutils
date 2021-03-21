@@ -19,6 +19,7 @@ import (
 )
 
 var hostName string
+var columnLen map[string]int
 
 func IsLocal(src string) bool {
 	if strings.ToLower(src) == "localhost" || src == "127.0.0.1" || src == hostName {
@@ -29,16 +30,22 @@ func IsLocal(src string) bool {
 func printRow(row *shared.Row, err error) {
 	fmt.Printf("%-12s %-20s %-20s %-20s %-12s %v\n", row.Description, hostName, row.SourceUser+"@"+row.Source, row.TargetIP+":"+row.TargetPort, row.Protocol, err)
 }
-func ReadRows(file string, filter *string) (map[string]shared.Row, []shared.Row) {
+func ReadRows(file string, filter *string) (map[string]shared.Row, []shared.Row, map[string]int) {
 	U, err := user.Current()
 	lines, err := shared.ReadCsv(file)
 	if err != nil {
 		fmt.Printf("%v\n", err)
-		return nil, nil
+		return nil, nil, nil
 	}
 	count := 0
 	rows := make([]shared.Row, 0)
 	m := map[string]shared.Row{}
+	mapMaxLen := map[string]int{}
+	mapMaxLen["Description"] = len("Description")
+	mapMaxLen["Source"] = len(hostName)
+	mapMaxLen["SourceUser"] = len("SourceUser")
+	mapMaxLen["TargetIP"] = len("TargetIP")
+	mapMaxLen["TargetPort"] = 5
 	for _, line := range lines {
 		count++
 		if count == 1 {
@@ -73,13 +80,33 @@ func ReadRows(file string, filter *string) (map[string]shared.Row, []shared.Row)
 			}
 		}
 		m[row.Source] = row
+		y := len(row.Description)
+		if y > mapMaxLen["Description"] {
+			mapMaxLen["Description"] = y
+		}
+		y = len(row.Source)
+		if y > mapMaxLen["Source"] {
+			mapMaxLen["Source"] = y
+		}
+		y = len(row.SourceUser)
+		if y > mapMaxLen["SourceUser"] {
+			mapMaxLen["SourceUser"] = y
+		}
+		y = len(row.TargetIP)
+		if y > mapMaxLen["TargetIP"] {
+			mapMaxLen["TargetIP"] = y
+		}
+		y = len(row.TargetPort)
+		if y > mapMaxLen["TargetPort"] {
+			mapMaxLen["TargetPort"] = y
+		}
 	}
 	applyFilter := false
 	if filter != nil && len(strings.TrimSpace(*filter)) > 0 {
 		applyFilter = true
 	}
 	if !applyFilter {
-		return m, rows
+		return m, rows, mapMaxLen
 	}
 	regEx := regexp.MustCompile(strings.TrimSpace(*filter))
 	filteredRows := make([]shared.Row, 0)
@@ -89,7 +116,7 @@ func ReadRows(file string, filter *string) (map[string]shared.Row, []shared.Row)
 		}
 		filteredRows = append(filteredRows, row)
 	}
-	return m, filteredRows
+	return m, filteredRows, mapMaxLen
 }
 func GetMaxRoutines(m map[string]shared.Row) int {
 	maxRoutines := 0
@@ -118,7 +145,12 @@ func RemoteExec(overwrite bool, row *shared.Row, csvFileBase string, ex string, 
 		}
 	}
 	fmt.Println("running concurrent tests on " + row.Source)
-	err = shared.RemoteExecSSH(row.SourceUser, row.Source, ":22", row.SourceKey, "chmod +x /tmp/"+exBaseName)
+	err = shared.RemoteExecSSH(row.SourceUser, row.Source, ":22", row.SourceKey, "chmod 777 /tmp/"+csvFileBase)
+	if err != nil {
+		printRow(row, err)
+		return
+	}
+	err = shared.RemoteExecSSH(row.SourceUser, row.Source, ":22", row.SourceKey, "chmod 777 /tmp/"+exBaseName)
 	if err != nil {
 		printRow(row, err)
 		return
@@ -189,7 +221,11 @@ func LocalExecCurrent(row *shared.Row, wg *sync.WaitGroup, index int, statusMap 
 
 }
 func LocalExec(rows []shared.Row) {
-	fmt.Printf("%-30s %-30s %-30s %-12s %-12s\n", "Description", "Source", "Target", "Protocol", "Status")
+	fmt.Printf("%-*s | %-*s | %-*s | %-12s | %-12s\n",
+		columnLen["Description"], "Description",
+		columnLen["Source"], "Source",
+		1+columnLen["TargetIP"]+columnLen["TargetPort"], "Target",
+		"Protocol", "Status")
 	fmt.Printf("--------------------------------------------------------------------------------------------------------------------------------\n")
 	var wg sync.WaitGroup
 	wg.Add(len(rows))
@@ -203,7 +239,11 @@ func LocalExec(rows []shared.Row) {
 	wg.Wait()
 	for i, row := range rows {
 		if status, ok := statusMap[i]; ok {
-			fmt.Printf("%-30s %-30s %-30s %-12s %-12s\n", row.Description, hostName, row.TargetIP+":"+row.TargetPort, row.Protocol, status)
+			fmt.Printf("%-*s | %-*s | %-*s | %-12s | %-12s\n",
+				columnLen["Description"], row.Description,
+				columnLen["Source"], hostName,
+				1+columnLen["TargetIP"]+columnLen["TargetPort"], row.TargetIP+":"+row.TargetPort,
+				row.Protocol, status)
 		}
 	}
 }
@@ -222,7 +262,9 @@ func main() {
 		fmt.Println("Usage: testnetwork --file <csv file>")
 		return
 	}
-	m, rows := ReadRows(*csvFile, filter)
+	var m map[string]shared.Row
+	var rows []shared.Row
+	m, rows, columnLen = ReadRows(*csvFile, filter)
 	maxRoutines := GetMaxRoutines(m)
 	if *remote == true {
 		if runtime.GOOS != "linux" {

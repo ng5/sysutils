@@ -2,7 +2,7 @@
   <configuration default="false" name="testnetwork" type="GoApplicationRunConfiguration" factoryName="Go Application">
     <module name="sysutils" />
     <working_directory value="$PROJECT_DIR$" />
-    <parameters value="--file rules.csv --filter=R.*(1|3)" />
+    <parameters value="--file rules.csv" />
     <EXTENSION ID="net.ashald.envfile">
       <option name="IS_ENABLED" value="false" />
       <option name="IS_SUBST" value="false" />
