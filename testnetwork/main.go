@@ -71,15 +71,6 @@ func ReadRows(file string, filter *string) (map[string]shared.Row, []shared.Row,
 		if len(row.SourceKey) == 0 {
 			row.SourceKey = path.Join(U.HomeDir, ".ssh", "id_rsa")
 		}
-		rows = append(rows, row)
-		previous, ok := m[row.Source]
-		if ok {
-			// Don't replace user added entry
-			if previous.SourceUser != U.Username {
-				continue
-			}
-		}
-		m[row.Source] = row
 		y := len(row.Description)
 		if y > mapMaxLen["Description"] {
 			mapMaxLen["Description"] = y
@@ -100,6 +91,15 @@ func ReadRows(file string, filter *string) (map[string]shared.Row, []shared.Row,
 		if y > mapMaxLen["TargetPort"] {
 			mapMaxLen["TargetPort"] = y
 		}
+		rows = append(rows, row)
+		previous, ok := m[row.Source]
+		if ok {
+			// Don't replace user added entry
+			if previous.SourceUser != U.Username {
+				continue
+			}
+		}
+		m[row.Source] = row
 	}
 	applyFilter := false
 	if filter != nil && len(strings.TrimSpace(*filter)) > 0 {
